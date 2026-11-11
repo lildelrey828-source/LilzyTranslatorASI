@@ -1,0 +1,37 @@
+name: Build LilzyTranslator ASI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Extract source ZIP
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem -Filter "*.zip" | Select-Object -First 1
+          if (-not $zip) { throw "Source ZIP not found" }
+          Expand-Archive $zip.FullName -DestinationPath "source" -Force
+          $project = Get-ChildItem "source" -Filter "*.vcxproj" -Recurse | Select-Object -First 1
+          if (-not $project) { throw "VC++ project not found" }
+          "PROJECT_FILE=$($project.FullName)" >> $env:GITHUB_ENV
+          "PROJECT_DIR=$($project.DirectoryName)" >> $env:GITHUB_ENV
+
+      - name: Build Win32 Release
+        run: msbuild "$env:PROJECT_FILE" /m /p:Configuration=Release /p:Platform=Win32
+
+      - name: Upload ASI
+        uses: actions/upload-artifact@v4
+        with:
+          name: LilzyTranslatorASI-Win32
+          path: source/**/bin/Release/LilzyTranslator.asi
